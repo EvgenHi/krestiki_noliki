@@ -1,37 +1,34 @@
 #include "game.hpp"
 
-TicTacToe::TicTacToe() {}
+TicTacToe::TicTacToe(){}
 
 // Prompts integer in 1..=9
-int prompt_digit() {
-    bool valid_input = false;
+int TicTacToe::prompt_digit() & {
     std::string raw_input;
-    int user_choose;
-    while (!valid_input) {
+    int user_choice;
+    while (true) {
         fmt::print("Put char in: ");
         std::cin >> raw_input;
         try {
-            user_choose = std::stoi(raw_input);
-        } catch (std::invalid_argument) {
-            continue;
-        } catch (std::out_of_range) {
+            user_choice = std::stoi(raw_input);
+        } catch (...) {
             continue;
         }
-        if (user_choose >= 0 && user_choose <= 9) {
-            return user_choose;
+        if (user_choice >= 0 && user_choice <= 9 && !game_table[user_choice -1].has_value()) {
+            last_move = std::to_string(user_choice).c_str()[0];
+            return user_choice;
         }
-        
     }
-    throw "unreachable";
 }
 
-Winner TicTacToe::get_winner() const& {
+void TicTacToe::find_winner() & {
     // Check lines
     for (int i = 0; i < 3; i++) {
         int sp(i * 3); // start point 
         optional<char> char_at_sp(game_table[sp]); // char at start point
         if ( char_at_sp.has_value() && game_table[sp + 1] == char_at_sp && game_table[sp + 2] == char_at_sp) {
-            return to_winner(char_at_sp.value());
+            this->winner=to_winner(char_at_sp.value());
+            return;
         }
     }
     // Check columns
@@ -39,76 +36,77 @@ Winner TicTacToe::get_winner() const& {
         int sp(i);
         optional<char> char_at_sp(game_table[sp]);
         if ( char_at_sp.has_value() && game_table[sp + 3] == char_at_sp && game_table[sp + 6] == char_at_sp) {
-            return to_winner(char_at_sp.value());
+            this->winner = to_winner(char_at_sp.value()); 
+            return; 
         }
     }
     // Check diagonales
     if (game_table[0].has_value()) {
         optional<char> char_at_sp(game_table[0]);
         if (game_table[4] == char_at_sp && game_table[8] == char_at_sp) {
-            return to_winner(char_at_sp.value());
+            this->winner = to_winner(char_at_sp.value());
+            return;
         }
     }
     if (game_table[2].has_value()) {
         optional<char> char_at_sp(game_table[2]);
         if (game_table[4] == char_at_sp && game_table[6] == char_at_sp) {
-            return to_winner(char_at_sp.value());
+            this->winner = to_winner(char_at_sp.value());
+            return;
         }
     }
     // If any of cell contains 'None' at this point, that means that Winner wasn't dound
     for (int i = 0; i < 9;i++) {
         if (!game_table[i].has_value()) {
-            throw WinnerNotFound;   
+            this->winner = Winner::NotFound;
+            return; 
         }
     }
     // If none of the checks above returned 
-    return Winner::Draw;
+    this->winner=Winner::Draw;
 }
 
 void TicTacToe::play() {
     fmt::print("\x1B[H");
     fmt::print("\x1B[2J");
     int current_move = 0;
-    while (true) {
-        current_move += 1;
+    while (this->winner == NotFound) {
         this->print();
-        int user_choice = prompt_digit();
-        if (game_table[user_choice- 1].has_value()) {
-            continue;
-        } else {
-            game_table[user_choice- 1] = current_move % 2 ? 'X' : 'O';
-        }
-        try {
-            Winner winner(this->get_winner());
-            fmt::print("\x1B[2J");
-            this->print();
-            switch (winner) {
-                case X:
-                    fmt::print("X won");
-                    break;
-                case O:
-                    fmt::print("O won");
-                    break;
-                case Draw:
-                    fmt::print("Draw");
-                    break;
-            }
-            break;
-        } catch (class WinnerNotFound) {
-            fmt::print("\x1B[2J");
-            fmt::print("\x1B[H");
-        }
 
+        current_move += 1;
+        int user_choice = prompt_digit();
+        game_table[user_choice- 1] = current_move % 2 ? 'X' : 'O';    
+        
+        this->find_winner();
+        fmt::print("\x1B[H");
+        fmt::print("\x1B[2J");            
+        switch (winner) {
+            case X:
+                this->print();
+                fmt::print("X won\n");
+                break;
+            case O:
+                this->print();
+                fmt::print("O won\n");
+                break;
+            case Draw:
+                this->print();
+                fmt::print("Draw\n");
+                break;
+            case NotFound:
+                break;
+        };
     }
 }
 
-std::string paint_cell_or_num(optional<char> ch, char num) {
+std::string TicTacToe::paint_cell(optional<char> ch, char num) const& {
     std::string start_o("\x1B[38;5;46m");
     std::string start_x("\x1B[38;5;160m");
+    std::string start_last("\x1B[38;5;220m");
     std::string start_num("\x1B[38;5;243m");  
     std::string end_color("\x1B[38;5;15m");
     char ch_cell = ch.value_or(num);
-    return fmt::format("{}{}{}", ch_cell == 'X' ? start_x : ch_cell == 'O' ? start_o : start_num, ch_cell, end_color);
+    return fmt::format("{}{}{}", num == last_move ? start_last : ch_cell == 'O' ? start_o : ch_cell == 'X' ? start_x : start_num, ch_cell, end_color);
 }
 
 void TicTacToe::print() const& {
@@ -120,15 +118,15 @@ void TicTacToe::print() const& {
 +---+---+---+\n\
 | {} | {} | {} |\n\
 +---+---+---+\n",
-paint_cell_or_num(game_table[0], '1'),
-paint_cell_or_num(game_table[1], '2'),
-paint_cell_or_num(game_table[2], '3'),
-paint_cell_or_num(game_table[3], '4'),
-paint_cell_or_num(game_table[4], '5'),
-paint_cell_or_num(game_table[5], '6'),
-paint_cell_or_num(game_table[6], '7'),
-paint_cell_or_num(game_table[7], '8'),
-paint_cell_or_num(game_table[8], '9')
+this->paint_cell(game_table[0], '1'),
+this->paint_cell(game_table[1], '2'),
+this->paint_cell(game_table[2], '3'),
+this->paint_cell(game_table[3], '4'),
+this->paint_cell(game_table[4], '5'),
+this->paint_cell(game_table[5], '6'),
+this->paint_cell(game_table[6], '7'),
+this->paint_cell(game_table[7], '8'),
+this->paint_cell(game_table[8], '9')
     );
 }
 
